@@ -1,7 +1,8 @@
 # Doodle or Die
 
-A side-view skateboard platformer drawn on notebook paper. Stick figure, ballpoint pen, and a path lined with
-lava, spikes, fans, saws, meat grinders and other things a bored kid would draw in class.
+A side-view skateboard platformer drawn on a single sheet of notebook paper: the whole level fits on one page (no scrolling),
+and you switchback up it by ollieing onto higher platforms, past lava, spikes, fans, saws, meat grinders and other things a
+bored kid would draw in class. Fall off a higher row and you land on the one below, so mistakes cost progress.
 
 **Play:** open `index.html` in a browser (no build, no server needed). Works on phones too (on-screen buttons appear on first touch).
 
@@ -18,8 +19,9 @@ lava, spikes, fans, saws, meat grinders and other things a bored kid would draw 
 - `js/levels.js` – levels as plain data; the object catalogue is documented at the top of the file.
 - `js/render.js` – pen-sketch rendering, stick figure IK, death ragdoll.
 - `js/main.js` – loop, input (keyboard + multitouch), synthesized audio, camera, HUD.
-- `test/feel.js` – headless numbers for ollie height / gap distance. `test/solve.js` – beam-search bot that proves
-  each level is beatable (`XB=25 VB=120 node test/solve.js [levelIndex] [beamWidth]`).
+- `test/feel.js` – headless numbers for ollie height / gap distance. `test/solve.js` – waypoint bot that proves each level
+  is beatable, and names the waypoint it gets stuck at if not (`node test/solve.js [levelIndex] [beamWidth]`).
 
+Level authoring: `sheet()` in `levels.js` generates the switchback rows/stairs; anything (incl. hand-placed solids) is just objects.
 Custom level: `index.html?level=my.json` loads a JSON file in the same shape as an entry in `levels.js`
 (needs to be served over http). Dev: `?l=2&x=2500` starts level 2 with the player teleported to x=2500.

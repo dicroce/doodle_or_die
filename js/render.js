@@ -62,17 +62,17 @@
   }
 
   // ---------------- background ----------------
-  function paper(ctx, cam, view) {
-    ctx.fillStyle = PAPER; ctx.fillRect(cam.x - 2, cam.y - 2, view.w + 4, view.h + 4);
+  function page(ctx, cam, view, L) { // the desk, the sheet of paper, and a clip to the sheet
+    ctx.fillStyle = '#cbc1a6'; ctx.fillRect(cam.x - 60, cam.y - 60, view.w + 120, view.h + 120);
+    ctx.fillStyle = 'rgba(0,0,0,0.20)'; ctx.fillRect(7, 9, L.w, L.h);
+    ctx.fillStyle = PAPER; ctx.fillRect(0, 0, L.w, L.h);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.w, L.h); ctx.clip();
     ctx.strokeStyle = RULE; ctx.lineWidth = 1.3; ctx.beginPath();
-    const LS = 30;
-    for (let y = Math.floor(cam.y / LS) * LS; y < cam.y + view.h + LS; y += LS) { ctx.moveTo(cam.x - 2, y); ctx.lineTo(cam.x + view.w + 2, y); }
+    for (let y = 30; y < L.h; y += 30) { ctx.moveTo(0, y); ctx.lineTo(L.w, y); }
     ctx.stroke();
-    if (cam.x < 100) { // red margin + punched holes near the start of the page
-      ctx.strokeStyle = MARGIN; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(60, cam.y - 2); ctx.lineTo(60, cam.y + view.h + 2); ctx.stroke();
-      ctx.fillStyle = '#d9d3bd';
-      for (const hy of [90, 270, 450]) { ctx.beginPath(); ctx.arc(24, hy, 9, 0, TAU); ctx.fill(); }
-    }
+    ctx.strokeStyle = MARGIN; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(84, 0); ctx.lineTo(84, L.h); ctx.stroke();
+    ctx.fillStyle = '#cbc1a6';
+    for (const hy of [120, 360, 600]) { ctx.beginPath(); ctx.arc(30, hy, 10, 0, TAU); ctx.fill(); }
   }
 
   // ---------------- hazards ----------------
@@ -238,19 +238,13 @@
     if (c.hit) { ctx.beginPath(); ctx.moveTo(c.x + 6, c.y - 53); ctx.lineTo(c.x + 11, c.y - 48); ctx.lineTo(c.x + 20, c.y - 58); ctx.stroke(); }
   }
   function drawFinish(ctx, w, t) {
-    const fx = w.level.finish.x;
-    if (w.level._fy === undefined) { // ground height at the finish
-      let y = w.level.h; for (const o of w.level.objects) if (o.type === 'solid' && fx >= o.x && fx <= o.x + o.w) y = Math.min(y, o.y);
-      w.level._fy = y;
-    }
-    const fy = w.level._fy, L = fx - 46, R = fx + 46, top = fy - 150;
+    const F = w.level.finish, fx0 = F.x, fy = F.y, L = fx0 - 34, Rr = fx0 + 34, top = fy - 96;
     ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(L, fy); ctx.lineTo(L, top); ctx.moveTo(R, fy); ctx.lineTo(R, top); ctx.stroke();
-    // checkered banner
-    const bw = R - L, cell = 12; ctx.save(); ctx.beginPath(); ctx.rect(L, top, bw, 36); ctx.fillStyle = PAPER; ctx.fill(); ctx.clip();
-    ctx.fillStyle = INK; for (let r = 0; r < 3; r++) for (let c = 0; c * cell < bw; c++) if ((r + c) % 2 === 0) ctx.fillRect(L + c * cell, top + r * cell, cell, cell);
-    ctx.restore(); sketchPoly(ctx, rectPts(L, top, bw, 36), 5.5, INK, 2.2, true);
-    text(ctx, 'FINISH', fx - 42, top - 10 + Math.sin(t * 3) * 1.5, 30, RED, -0.04);
+    ctx.beginPath(); ctx.moveTo(L, fy); ctx.lineTo(L, top); ctx.moveTo(Rr, fy); ctx.lineTo(Rr, top); ctx.stroke();
+    const bw = Rr - L, cell = 11; ctx.save(); ctx.beginPath(); ctx.rect(L, top, bw, 22); ctx.fillStyle = PAPER; ctx.fill(); ctx.clip();
+    ctx.fillStyle = INK; for (let r = 0; r < 2; r++) for (let c = 0; c * cell < bw; c++) if ((r + c) % 2 === 0) ctx.fillRect(L + c * cell, top + r * cell, cell, cell);
+    ctx.restore(); sketchPoly(ctx, rectPts(L, top, bw, 22), 5.5, INK, 2.2, true);
+    text(ctx, 'FINISH', fx0 - 34, top - 8 + Math.sin(t * 3) * 1.5, 26, RED, -0.04);
     for (let c = 0; c * cell < bw; c++) { ctx.fillStyle = c % 2 ? INK : PAPER; ctx.fillRect(L + c * cell, fy - 5, cell, 5); }
     ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.strokeRect(L, fy - 5, bw, 5);
   }
@@ -397,7 +391,7 @@
   // ---------------- world ----------------
   function drawWorld(ctx, w, cam, view) {
     const t = w.t, p = w.player;
-    paper(ctx, cam, view);
+    page(ctx, cam, view, w.level);
     ctx.save(); ctx.lineCap = 'round';
     // hazards that can be half-buried in the ground go behind solids
     for (const h of w.hazards) {
@@ -432,6 +426,7 @@
     drawFinish(ctx, w, t);
     if (!p.dead) drawPlayer(ctx, p, t);
     ctx.restore();
+    ctx.restore(); // page clip
   }
 
   root.DOD.Render = { drawWorld, fx, pose, text, FONT, INK, RED, PAPER, RULE };

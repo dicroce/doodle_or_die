@@ -83,15 +83,15 @@
     levelIdx = i;
     world = D.build(custom || levels[i]);
     fx.reset();
-    const p = world.player;
-    cam.x = clamp(p.x - view.w * 0.3, 0, Math.max(0, world.level.w - view.w));
-    cam.y = camTargetY();
     cam.shake = 0; runTime = 0;
+    fit();
   }
-  function camTargetY() {
-    const lh = world.level.h;
-    if (lh <= view.h) return (lh - view.h) / 2;
-    return clamp(world.player.y - view.h * 0.62, 0, lh - view.h);
+  // The whole level is one page: scale it to fit the window and centre it. No scrolling.
+  function fit() {
+    const L = world ? world.level : { w: 1280, h: 720 };
+    const cw = innerWidth, ch = innerHeight, s = Math.min((cw - 16) / L.w, (ch - 16) / L.h);
+    view.scale = s; view.w = cw / s; view.h = ch / s;
+    cam.x = (L.w - view.w) / 2; cam.y = (L.h - view.h) / 2;
   }
   function startPlay(i, custom) { Snd.init(); Snd.start(); state = 'play'; stateT = 0; loadLevel(i, custom); }
 
@@ -175,9 +175,8 @@
   function resize() {
     const dpr = window.devicePixelRatio || 1, cw = innerWidth, ch = innerHeight;
     canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
-    let scale = ch / 540, vw = cw / scale;
-    if (vw < 720) { scale = cw / 720; vw = 720; }
-    view.w = vw; view.h = ch / scale; view.scale = scale; view.dpr = dpr;
+    view.dpr = dpr;
+    fit();
     layoutButtons();
   }
   addEventListener('resize', resize); resize();
@@ -237,12 +236,6 @@
       lastPushPh = p.pushPh;
       Snd.rolling(p.dead ? 0 : p.vx, p.grounded && !p.dead);
       fx.update(dt);
-      // camera
-      if (!p.dead || true) {
-        const tx = clamp(p.x + p.vx * 0.22 - view.w * 0.36, 0, Math.max(0, world.level.w - view.w));
-        cam.x += (tx - cam.x) * Math.min(1, 7 * dt);
-        cam.y += (camTargetY() - cam.y) * Math.min(1, 5 * dt);
-      }
       cam.shake = Math.max(0, cam.shake - dt * 22);
       respawnFlash = Math.max(0, respawnFlash - dt * 3);
     } else {
@@ -343,7 +336,6 @@
   if (!world) loadLevel(0);
   if (qs.get('x')) { // dev: ?l=2&x=2500[&y=400] teleports the player (used for screenshots/testing)
     const p = world.player; p.x = +qs.get('x'); p.y = +(qs.get('y') || 400); world.spawn = { x: p.x, y: p.y, vx: 0 };
-    cam.x = clamp(p.x - view.w * 0.3, 0, Math.max(0, world.level.w - view.w));
   }
   requestAnimationFrame(frame);
 

@@ -336,12 +336,12 @@
 
     // checkpoints & finish
     for (const c of w.checks) {
-      if (!c.hit && p.x >= c.x) {
+      if (!c.hit && Math.abs(p.x - c.x) < 26 && Math.abs(p.y - c.y) < 40) {
         c.hit = true; w.spawn = { x: c.x, y: c.y, vx: 180 };
         w.events.push({ type: 'checkpoint', x: c.x, y: c.y });
       }
     }
-    if (p.x >= w.level.finish.x) { w.finished = true; w.events.push({ type: 'win' }); }
+    if (Math.abs(p.x - w.level.finish.x) < 24 && Math.abs(p.y - w.level.finish.y) < 50) { w.finished = true; w.events.push({ type: 'win' }); }
     w.clock += dt;
   }
 

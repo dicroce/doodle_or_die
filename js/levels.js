@@ -1,7 +1,8 @@
 // Levels are plain data (JSON-compatible). A level editor only needs to read/write this shape.
 //
-// level: { name, w, h, start:{x,y}, finish:{x}, objects:[ ... ] }
-// x/y are world pixels, y grows downward. Ground line is conventionally y=400.
+// level: { name, w, h, start:{x,y}, finish:{x,y}, objects:[ ... ] }
+// The whole level is one notebook page (nominally 1280x720) shown without scrolling; y grows downward.
+// start.y / finish.y are the surface heights (feet) the skater stands on there.
 //
 // object types:
 //   solid      {x,y,w,h}                          rect you can stand on / bonk into
@@ -15,96 +16,138 @@
 //   fan        {x,y,w,h,dir,power}                wind zone; dir: up|down|left|right
 //   crumble    {x,y,w,h,delay?}                   solid that falls away after you touch it
 //   spring     {x,y,w,power?}                     bouncy pad (sits on the surface at y)
-//   checkpoint {x,y}                              y = ground line
+//   checkpoint {x,y}                              y = surface; triggers when the skater is near it
 //   text       {x,y,text,size?}                   handwritten hint
+//
+// `sheet()` below is only an authoring shortcut that generates the "switchback climb" geometry (rows of
+// platforms joined by ollie-able steps). It outputs ordinary objects; the runtime only ever sees data.
 (function (root) {
   'use strict';
-  const G = 400; // ground line
-  const ground = (x, w) => ({ type: 'solid', x, y: G, w, h: 300 });
+  const W = 1280, H = 720, Y0 = 660;
 
-  const levels = [
-    {
-      name: 'Homeroom', w: 4600, h: 540,
-      start: { x: 110, y: G }, finish: { x: 4460 },
-      objects: [
-        ground(0, 900), ground(1060, 700), ground(1940, 160), ground(2300, 1750), ground(4230, 370),
-        { type: 'text', x: 150, y: 300, text: 'hold  →  to push', size: 30 },
-        { type: 'text', x: 470, y: 290, text: 'SPACE = ollie', size: 30 },
-        { type: 'text', x: 470, y: 322, text: '(hold it longer = higher)', size: 20 },
-        { type: 'solid', x: 700, y: 372, w: 60, h: 28 },
-        { type: 'text', x: 930, y: 300, text: 'mind the gap', size: 26 },
-        { type: 'spikes', x: 1300, y: G - 22, w: 80, h: 22, facing: 'up' },
-        { type: 'checkpoint', x: 1500, y: G },
-        { type: 'ramp', x: 1640, y: 352, w: 120, h: 48, dir: 1 },
-        { type: 'text', x: 1560, y: 280, text: 'ollie off the lip!', size: 24 },
-        { type: 'lava', x: 2100, y: 412, w: 200, h: 130 },
-        { type: 'checkpoint', x: 2400, y: G },
-        { type: 'fan', x: 2520, y: 200, w: 200, h: 200, dir: 'up', power: 4200 },
-        { type: 'spikes', x: 2440, y: 150, w: 360, h: 30, facing: 'down' },
-        { type: 'text', x: 2470, y: 110, text: 'hmm, a fan...', size: 24 },
-        { type: 'saw', x: 3040, y: G, r: 30, spin: 1 },
-        { type: 'saw', x: 3320, y: 378, r: 26, path: { dx: 190, dy: 0, period: 2.6 } },
-        { type: 'checkpoint', x: 3600, y: G },
-        { type: 'pendulum', x: 3830, y: 110, len: 250, amp: 50, period: 2.6, r: 24 },
-        { type: 'grinder', x: 4140, y: 424, r: 40 },
-      ],
-    },
-    {
-      name: 'Study Hall', w: 4700, h: 540,
-      start: { x: 110, y: G }, finish: { x: 4560 },
-      objects: [
-        ground(0, 2300), ground(3010, 640), ground(3650, 1050),
-        { type: 'text', x: 220, y: 300, text: 'no way past that... or is there?', size: 26 },
-        { type: 'spikes', x: 660, y: G - 24, w: 540, h: 24, facing: 'up' },
-        { type: 'spring', x: 560, y: G - 14, w: 56 },
-        { type: 'solid', x: 840, y: 290, w: 480, h: 24 },
-        { type: 'checkpoint', x: 1420, y: G },
-        { type: 'crusher', x: 1620, y: 150, w: 90, h: 100, drop: 150, period: 3.0, phase: 0 },
-        { type: 'crusher', x: 1830, y: 150, w: 90, h: 100, drop: 150, period: 3.0, phase: 0.33 },
-        { type: 'crusher', x: 2040, y: 150, w: 90, h: 100, drop: 150, period: 3.0, phase: 0.66 },
-        { type: 'checkpoint', x: 2210, y: G },
-        { type: 'lava', x: 2300, y: 412, w: 710, h: 130 },
-        { type: 'crumble', x: 2320, y: G, w: 90, h: 40 },
-        { type: 'crumble', x: 2470, y: G, w: 90, h: 40 },
-        { type: 'crumble', x: 2620, y: G, w: 90, h: 40 },
-        { type: 'crumble', x: 2770, y: G, w: 90, h: 40 },
-        { type: 'crumble', x: 2920, y: G, w: 90, h: 40 },
-        { type: 'checkpoint', x: 3100, y: G },
-        { type: 'fan', x: 3380, y: 200, w: 300, h: 200, dir: 'left', power: 450 },
-        { type: 'text', x: 3330, y: 150, text: 'headwind!', size: 26 },
-        { type: 'pendulum', x: 3900, y: 100, len: 260, amp: 55, period: 2.4, phase: 0, r: 24 },
-        { type: 'pendulum', x: 4120, y: 100, len: 260, amp: 55, period: 2.4, phase: 0.5, r: 24 },
-      ],
-    },
-    {
-      name: 'Detention', w: 4400, h: 540,
-      start: { x: 110, y: G }, finish: { x: 4300 },
-      objects: [
-        ground(0, 520), ground(1160, 540), ground(1900, 550), ground(2950, 550), ground(3700, 700),
-        { type: 'ramp', x: 380, y: 340, w: 140, h: 60, dir: 1 },
-        { type: 'solid', x: 520, y: 340, w: 640, h: 260 },
-        { type: 'text', x: 560, y: 250, text: 'the floor bites back', size: 24 },
-        { type: 'saw', x: 760, y: 352, r: 26, path: { dx: 0, dy: -120, period: 2.4 } },
-        { type: 'saw', x: 980, y: 352, r: 26, path: { dx: 0, dy: -120, period: 2.4, phase: 0.5 } },
-        { type: 'checkpoint', x: 1260, y: G },
-        { type: 'fan', x: 1380, y: 220, w: 320, h: 180, dir: 'right', power: 700 },
-        { type: 'spikes', x: 1940, y: G - 24, w: 60, h: 24, facing: 'up' },
-        { type: 'checkpoint', x: 2100, y: G },
-        { type: 'spring', x: 2300, y: G - 14, w: 56 },
-        { type: 'lava', x: 2450, y: 412, w: 500, h: 130 },
-        { type: 'solid', x: 2560, y: 250, w: 140, h: 24 },
-        { type: 'solid', x: 2790, y: 250, w: 150, h: 24 },
-        { type: 'spikes', x: 2620, y: 100, w: 340, h: 30, facing: 'down' },
-        { type: 'text', x: 2540, y: 190, text: 'small hops only', size: 22 },
-        { type: 'checkpoint', x: 3050, y: G },
-        { type: 'grinder', x: 3600, y: 424, r: 40 },
-        { type: 'crusher', x: 3850, y: 150, w: 100, h: 100, drop: 150, period: 2.8, phase: 0 },
-        { type: 'crusher', x: 4030, y: 150, w: 100, h: 100, drop: 150, period: 2.8, phase: 0.5 },
-      ],
-    },
-  ];
+  // rows: number of platform rows. Row 0 is the thick ground, rows alternate heading right / left.
+  // gap: vertical spacing between rows. step: height of each of the two stairs at a turn.
+  // cuts: {row: [[x0,x1],...]} holes cut out of a row (pits / gaps).
+  function sheet(name, { rows, gap, step, cuts = {}, extras = [] }) {
+    const Y = (i) => Y0 - gap * i, T = 20;
+    const objs = [{ type: 'solid', x: -100, y: -400, w: 100, h: 1500 }, { type: 'solid', x: W, y: -400, w: 100, h: 1500 }];
+    const seg = (i, x0, x1) => { // a row platform with its cuts removed
+      let parts = [[x0, x1]];
+      for (const [c0, c1] of cuts[i] || []) {
+        parts = parts.flatMap(([a, b]) => (c1 <= a || c0 >= b) ? [[a, b]] : [[a, Math.max(a, c0)], [Math.min(b, c1), b]].filter(p => p[1] - p[0] > 0));
+      }
+      for (const [a, b] of parts) objs.push({ type: 'solid', x: a, y: Y(i), w: b - a, h: i === 0 ? 200 : T });
+    };
+    for (let i = 0; i < rows; i++) {
+      const last = i === rows - 1;
+      const left = i === 0 ? 0 : (i % 2 === 0 ? 160 : 0);
+      const right = i === 0 ? W : (i % 2 === 0 ? (last ? 1240 : 1180) : 1120); // odd rows stop short so the stairs below have open sky
+      seg(i, left, right);
+      if (!last) {
+        if (i % 2 === 0) { // right-hand stairs up to the next row
+          objs.push({ type: 'solid', x: 1120, y: Y(i) - step, w: 60, h: step });
+          objs.push({ type: 'solid', x: 1180, y: Y(i) - 2 * step, w: 100, h: 2 * step + (i === 0 ? 0 : T) });
+        } else { // left-hand stairs
+          objs.push({ type: 'solid', x: 100, y: Y(i) - step, w: 60, h: step });
+          objs.push({ type: 'solid', x: 0, y: Y(i) - 2 * step, w: 100, h: 2 * step });
+        }
+      }
+    }
+    const lastRow = rows - 1;
+    const fin = { x: lastRow % 2 ? 110 : 1150, y: Y(lastRow) };
+    // meta is authoring/test info only (the solver bot uses it to plot a route); the game ignores it
+    return { name, w: W, h: H, start: { x: 110, y: Y0 }, finish: fin, meta: { rows, gap, step, cuts }, objects: objs.concat(extras) };
+  }
+
+  const g1 = 150, Y1 = (i) => Y0 - g1 * i;
+  const level1 = sheet('Page One', {
+    rows: 4, gap: g1, step: 50,
+    cuts: { 0: [[640, 780]], 1: [[560, 700]], 2: [[760, 900]] },
+    extras: [
+      { type: 'text', x: 200, y: 610, text: 'hold  →  to push', size: 30 },
+      { type: 'text', x: 200, y: 578, text: 'SPACE = ollie', size: 26 },
+      { type: 'spikes', x: 420, y: Y1(0) - 22, w: 70, h: 22, facing: 'up' },
+      { type: 'lava', x: 640, y: 672, w: 140, h: 48 },
+      { type: 'saw', x: 950, y: Y1(0), r: 26 },
+      { type: 'text', x: 880, y: 590, text: 'ollie up the stairs!', size: 22 },
+      // row 1 (heading left)
+      { type: 'checkpoint', x: 1060, y: Y1(1) },
+      { type: 'pendulum', x: 900, y: Y1(2) + 20, len: 100, amp: 50, period: 2.4, r: 20 },
+      { type: 'spikes', x: 380, y: Y1(1) - 22, w: 60, h: 22, facing: 'up' },
+      // row 2 (heading right)
+      { type: 'checkpoint', x: 210, y: Y1(2) },
+      { type: 'fan', x: 420, y: 230, w: 120, h: 130, dir: 'up', power: 3400 },
+      { type: 'spikes', x: 400, y: 230, w: 160, h: 24, facing: 'down' },
+      { type: 'text', x: 250, y: 330, text: 'hmm, a fan...', size: 22 },
+      { type: 'grinder', x: 830, y: 386, r: 32 },
+      // row 3 (heading left)
+      { type: 'checkpoint', x: 1060, y: Y1(3) },
+      { type: 'crusher', x: 850, y: 40, w: 90, h: 80, drop: 90, period: 3.0 },
+      { type: 'saw', x: 420, y: Y1(3) - 20, r: 22, path: { dx: 150, dy: 0, period: 2.6 } },
+      { type: 'spikes', x: 250, y: Y1(3) - 22, w: 50, h: 22, facing: 'up' },
+    ],
+  });
+
+  const g2 = 130, Y2 = (i) => Y0 - g2 * i;
+  const level2 = sheet('Switchback', {
+    rows: 5, gap: g2, step: 43,
+    cuts: { 0: [[560, 700]], 1: [[500, 840]], 2: [[700, 840]], 3: [[540, 640]] },
+    extras: [
+      { type: 'text', x: 200, y: 600, text: 'five floors to go...', size: 26 },
+      { type: 'spikes', x: 350, y: Y2(0) - 22, w: 50, h: 22, facing: 'up' },
+      { type: 'lava', x: 560, y: 672, w: 140, h: 48 },
+      { type: 'saw', x: 900, y: Y2(0), r: 26 },
+      // row 1 (left): crumbling bridge
+      { type: 'checkpoint', x: 1060, y: Y2(1) },
+      { type: 'crumble', x: 760, y: Y2(1), w: 80, h: 20, delay: 0.3 },
+      { type: 'crumble', x: 630, y: Y2(1), w: 80, h: 20, delay: 0.3 },
+      { type: 'crumble', x: 500, y: Y2(1), w: 80, h: 20, delay: 0.3 },
+      // row 2 (right): headwind gap
+      { type: 'checkpoint', x: 210, y: Y2(2) },
+      { type: 'fan', x: 600, y: 290, w: 260, h: 110, dir: 'left', power: 450 },
+      { type: 'spikes', x: 380, y: Y2(2) - 22, w: 60, h: 22, facing: 'up' },
+      { type: 'text', x: 640, y: 440, text: 'headwind!', size: 22 },
+      // row 3 (left): pendulum + grinder
+      { type: 'checkpoint', x: 1060, y: Y2(3) },
+      { type: 'pendulum', x: 900, y: Y2(4) + 20, len: 90, amp: 55, period: 2.3, r: 20 },
+      { type: 'grinder', x: 590, y: Y2(3) + 22, r: 28 },
+      // row 4 (right): the finish
+      { type: 'checkpoint', x: 210, y: Y2(4) },
+      { type: 'spikes', x: 400, y: Y2(4) - 22, w: 60, h: 22, facing: 'up' },
+      { type: 'saw', x: 640, y: Y2(4) - 20, r: 22, path: { dx: 140, dy: 0, period: 2.4 } },
+    ],
+  });
+
+  const g3 = 150, Y3 = (i) => Y0 - g3 * i;
+  const level3 = sheet('Final Exam', {
+    rows: 4, gap: g3, step: 50,
+    cuts: { 0: [[560, 700]], 1: [[420, 720]], 2: [[640, 780]] },
+    extras: [
+      { type: 'saw', x: 300, y: Y3(0) - 20, r: 22, path: { dx: 180, dy: 0, period: 2.6 } },
+      { type: 'lava', x: 560, y: 672, w: 140, h: 48 },
+      { type: 'spikes', x: 745, y: Y3(0) - 22, w: 60, h: 22, facing: 'up' },
+      { type: 'saw', x: 950, y: Y3(0) + 12, r: 26, path: { dx: 0, dy: -90, period: 2.4 } },
+      // row 1 (left)
+      { type: 'checkpoint', x: 1060, y: Y3(1) },
+      { type: 'crumble', x: 620, y: Y3(1), w: 90, h: 20, delay: 0.3 },
+      { type: 'crumble', x: 520, y: Y3(1), w: 90, h: 20, delay: 0.3 },
+      { type: 'crumble', x: 420, y: Y3(1), w: 90, h: 20, delay: 0.3 },
+      { type: 'spikes', x: 300, y: Y3(1) - 22, w: 50, h: 22, facing: 'up' },
+      // row 2 (right)
+      { type: 'checkpoint', x: 210, y: Y3(2) },
+      { type: 'fan', x: 300, y: 230, w: 120, h: 130, dir: 'up', power: 3400 },
+      { type: 'spikes', x: 280, y: 230, w: 160, h: 24, facing: 'down' },
+      { type: 'grinder', x: 710, y: 384, r: 32 },
+      { type: 'pendulum', x: 1000, y: Y3(3) + 20, len: 100, amp: 50, period: 2.4, r: 20 },
+      // row 3 (left)
+      { type: 'checkpoint', x: 1060, y: Y3(3) },
+      { type: 'crusher', x: 900, y: 40, w: 90, h: 80, drop: 90, period: 2.8, phase: 0 },
+      { type: 'crusher', x: 660, y: 40, w: 90, h: 80, drop: 90, period: 2.8, phase: 0.5 },
+      { type: 'saw', x: 300, y: Y3(3) - 20, r: 22, path: { dx: 140, dy: 0, period: 2.4 } },
+    ],
+  });
 
   root.DOD = root.DOD || {};
-  root.DOD.levels = levels;
-  if (typeof module !== 'undefined') module.exports = levels;
+  root.DOD.levels = [level1, level2, level3];
+  if (typeof module !== 'undefined') module.exports = root.DOD.levels;
 })(typeof window !== 'undefined' ? window : globalThis);
