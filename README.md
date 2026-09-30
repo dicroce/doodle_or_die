@@ -1,5 +1,7 @@
 # Doodle or Die
 
+![Doodle or Die](media/cover.png)
+
 A side-view skateboard platformer drawn on a single sheet of notebook paper: the whole level fits on one page (no scrolling),
 and you switchback up it by ollieing onto higher platforms, past lava, spikes, fans, saws, meat grinders and other things a
 bored kid would draw in class. Fall off a higher row and you land on the one below, so mistakes cost progress.
@@ -15,6 +17,14 @@ bored kid would draw in class. Fall off a higher row and you land on the one bel
 | B | rivals on/off |
 | M | mute |
 | 1-3 (title) | pick a page |
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Title screen](media/1-title.png) | ![Racing the rivals on Page One](media/2-page-one-race.png) |
+| ![Grinding over spikes](media/3-grind.png) | ![Switchback](media/4-switchback.png) |
+| ![Final Exam](media/5-final-exam.png) | |
 
 ## Layout
 - `js/sim.js` – physics + traps, pure logic (no DOM). **All ollie/feel constants live in `C` at the top.**

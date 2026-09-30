@@ -316,7 +316,7 @@
     if (world.player.dead && world.player.deadT > 0.35 && state === 'play') txt('tap / press any key', view.w / 2, view.h - 24, 18, 'rgba(29,42,77,0.5)', 0, 'center');
   }
   function drawTitle() {
-    ctx.fillStyle = 'rgba(247,244,230,0.55)'; ctx.fillRect(0, 0, view.w, view.h);
+    ctx.fillStyle = 'rgba(247,244,230,0.88)'; ctx.fillRect(0, 0, view.w, view.h);
     const cx = view.w / 2, bob = Math.sin(simT * 2) * 3;
     txt('DOODLE', cx - 10, 150 + bob, 96, R.INK, -0.05, 'right');
     txt('or', cx + 6, 150 + bob, 44, R.RED, -0.05, 'left');
@@ -367,12 +367,13 @@
     const n = parseInt(qs.get('l'), 10); if (n >= 1 && n <= levels.length) { loadLevel(n - 1); state = 'play'; }
   }
   if (!world) loadLevel(0);
-  if (qs.get('x')) { // dev: ?l=2&x=2500[&y=400] teleports the player (used for screenshots/testing)
-    const p = world.player; p.x = +qs.get('x'); p.y = +(qs.get('y') || 400); world.spawn = { x: p.x, y: p.y, vx: 0 };
-    if (qs.get('gr')) { p.grounded = false; p.grindT = 0.8; p.vy = 30; p.vx = 300; } // dev: start mid-grind
-  }
   if (qs.get('ff')) { // dev: ?l=1&ff=25 fast-forwards 25s of simulated time (rivals included) for screenshots
     for (let n = 0; n < (+qs.get('ff')) * 120; n++) { D.step(world, STEP); if (bots.length) D.Bots.step(bots, STEP, botEvents); if (n % 6 === 0) fx.update(STEP * 6); if (world.events.length) world.events.length = 0; }
+  }
+  if (qs.get('x')) { // dev: ?l=2&x=2500[&y=400] teleports the player (used for screenshots/testing)
+    const p = world.player; p.x = +qs.get('x'); p.y = +(qs.get('y') || 400); world.spawn = { x: p.x, y: p.y, vx: 0 };
+    if (qs.get('air')) { p.grounded = false; p.vy = -180; p.vx = 330; p.boardAng = 0.28; p.popT = 0.2; } // dev: start mid-ollie
+    if (qs.get('gr')) { p.grounded = false; p.grindT = 0.8; p.vy = 30; p.vx = 300; } // dev: start mid-grind
   }
   requestAnimationFrame(frame);
 
