@@ -75,6 +75,7 @@
   let touchMode = false, touches = new Map(), buttons = [];
   let best = {};
   try { best = JSON.parse(localStorage.getItem('dod_best') || '{}'); } catch (e) { best = {}; }
+  let bots = [], botsOn = true;
   let runTime = 0, winInfo = null, lastPushPh = 0, respawnFlash = 0, stateT = 0;
 
   function saveBest() { try { localStorage.setItem('dod_best', JSON.stringify(best)); } catch (e) { /* private mode */ } }
@@ -84,8 +85,17 @@
     world = D.build(custom || levels[i]);
     fx.reset();
     cam.shake = 0; runTime = 0;
+    spawnBots(custom ? null : i);
     fit();
   }
+  // Rival skaters (computer-controlled, mostly failing). Only for levels that carry route metadata (level.meta).
+  function spawnBots(i) {
+    bots = (botsOn && i !== null && D.Bots) ? D.Bots.create(levels[i], 4) : [];
+  }
+  const botEvents = {
+    // Rivals splat visually but never shake the screen or make sound.
+    die(b, e) { const p = b.w.player; fx.death(p, e.cause, b.w.t, p.hitX, p.hitY, { color: b.color, alpha: 0.55, quiet: true }); },
+  };
   // The whole level is one page: scale it to fit the window and centre it. No scrolling.
   function fit() {
     const L = world ? world.level : { w: 1280, h: 720 };
@@ -123,6 +133,7 @@
     down.add(e.code);
     Snd.init();
     if (e.code === 'KeyM') { Snd.toggle(); return; }
+    if (e.code === 'KeyB') { botsOn = !botsOn; spawnBots(state === 'title' || !world ? 0 : levelIdx); return; }
     if (state === 'title') {
       const n = parseInt(e.key, 10);
       if (n >= 1 && n <= levels.length) { startPlay(n - 1); return; }
@@ -227,6 +238,7 @@
       acc += dt;
       while (acc >= STEP) {
         D.step(world, STEP); acc -= STEP;
+        if (bots.length) D.Bots.step(bots, STEP, botEvents);
         if (world.events.length) handleEvents();
         if (world.player.dead && world.player.deadT > 0.95 && state === 'play') doRespawn();
       }
@@ -251,7 +263,7 @@
     if (!world) { loadLevel(0); }
     const sx = cam.shake ? (Math.random() - 0.5) * cam.shake : 0, sy = cam.shake ? (Math.random() - 0.5) * cam.shake : 0;
     ctx.setTransform(s, 0, 0, s, (-cam.x + sx) * s, (-cam.y + sy) * s);
-    R.drawWorld(ctx, world, cam, view);
+    R.drawWorld(ctx, world, cam, view, state === 'title' ? null : bots);
     fx.draw(ctx);
     ctx.setTransform(s, 0, 0, s, 0, 0); // screen space (logical units)
     if (state === 'play') drawHUD();
@@ -281,6 +293,15 @@
     txt(world.level.name, view.w - 20, 34, 26, R.INK, 0.01, 'right');
     txt(fmt(world.clock), view.w - 20, 62, 22, 'rgba(29,42,77,0.7)', 0.01, 'right');
     if (world.deaths) { txt('oopsies:', 20, 26, 18, 'rgba(29,42,77,0.6)'); tally(20, 34, world.deaths); }
+    if (bots.length) { // rivals' scoreboard, centred along the top of the page
+      const cx = -cam.x + world.level.w / 2, y = -cam.y + 22;
+      ctx.font = '15px ' + R.FONT; ctx.textBaseline = 'alphabetic';
+      const parts = bots.map(b => b.name + ' x' + b.w.deaths + (b.finishes ? ' ✓' + b.finishes : ''));
+      const widths = parts.map(t => ctx.measureText(t).width), gap = 26, total = widths.reduce((a, b) => a + b, 0) + gap * (parts.length - 1);
+      let x = cx - total / 2; ctx.textAlign = 'left';
+      parts.forEach((t, i) => { ctx.fillStyle = bots[i].color; ctx.globalAlpha = 0.85; ctx.fillText(t, x, y); x += widths[i] + gap; });
+      ctx.globalAlpha = 1;
+    }
     if (respawnFlash > 0) { ctx.fillStyle = 'rgba(247,244,230,' + respawnFlash * 0.5 + ')'; ctx.fillRect(0, 0, view.w, view.h); }
     if (world.player.dead && world.player.deadT > 0.35 && state === 'play') txt('tap / press any key', view.w / 2, view.h - 24, 18, 'rgba(29,42,77,0.5)', 0, 'center');
   }
@@ -294,7 +315,7 @@
     txt('a skateboarding stick figure vs. a bored kid with a pen', cx, 218, 24, 'rgba(29,42,77,0.8)', -0.01, 'center');
     const blink = 0.6 + 0.4 * Math.sin(simT * 4);
     txt(touchMode ? 'tap to start' : 'press SPACE to start', cx, view.h - 110, 34, 'rgba(29,42,77,' + blink + ')', 0, 'center');
-    txt('← → push/brake     SPACE ollie (hold = higher)     R retry     M mute', cx, view.h - 70, 19, 'rgba(29,42,77,0.65)', 0, 'center');
+    txt('← → push/brake     SPACE ollie (hold = higher)     R retry   B rivals   M mute', cx, view.h - 70, 19, 'rgba(29,42,77,0.65)', 0, 'center');
     txt('keys 1-' + levels.length + ' pick a page', cx, view.h - 44, 18, 'rgba(29,42,77,0.5)', 0, 'center');
   }
   function drawWin() {
@@ -336,6 +357,9 @@
   if (!world) loadLevel(0);
   if (qs.get('x')) { // dev: ?l=2&x=2500[&y=400] teleports the player (used for screenshots/testing)
     const p = world.player; p.x = +qs.get('x'); p.y = +(qs.get('y') || 400); world.spawn = { x: p.x, y: p.y, vx: 0 };
+  }
+  if (qs.get('ff')) { // dev: ?l=1&ff=25 fast-forwards 25s of simulated time (rivals included) for screenshots
+    for (let n = 0; n < (+qs.get('ff')) * 120; n++) { D.step(world, STEP); if (bots.length) D.Bots.step(bots, STEP, botEvents); if (n % 6 === 0) fx.update(STEP * 6); if (world.events.length) world.events.length = 0; }
   }
   requestAnimationFrame(frame);
 

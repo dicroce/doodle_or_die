@@ -306,9 +306,9 @@
     const board = { cx, cy, dx, dy, nx, ny };
     return { segs, head, board, f };
   }
-  function drawBoard(ctx, b, wheelRot) {
+  function drawBoard(ctx, b, wheelRot, color) {
     const { cx, cy, dx, dy, nx, ny } = b;
-    ctx.strokeStyle = INK; ctx.lineWidth = 3.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = color || INK; ctx.lineWidth = 3.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(cx - dx * 23 + nx * 3.5, cy - dy * 23 + ny * 3.5); ctx.lineTo(cx - dx * 19, cy - dy * 19);
     ctx.lineTo(cx + dx * 19, cy + dy * 19); ctx.lineTo(cx + dx * 23 + nx * 3.5, cy + dy * 23 + ny * 3.5); ctx.stroke();
@@ -319,18 +319,22 @@
       const ra = wheelRot; ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + Math.cos(ra) * 3, wy + Math.sin(ra) * 3); ctx.stroke();
     }
   }
-  function drawHead(ctx, head, f) {
-    ctx.strokeStyle = '#111'; ctx.fillStyle = '#111'; ctx.lineWidth = 3;
+  function drawHead(ctx, head, f, color) {
+    ctx.strokeStyle = color || '#111'; ctx.fillStyle = color || '#111'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(head[0], head[1], 5.6, 0, TAU); ctx.stroke();
     ctx.beginPath(); ctx.arc(head[0], head[1], 5.8, Math.PI, TAU); ctx.fill(); // cap
     ctx.beginPath(); ctx.moveTo(head[0] + f * 4, head[1] - 1.5); ctx.lineTo(head[0] + f * 10, head[1] - 0.5); ctx.stroke();
   }
-  function drawPlayer(ctx, p, t) {
-    const ps = pose(p, t);
-    drawBoard(ctx, ps.board, p.wheel * 0.28);
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 3.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // style (rivals only): {color, alpha, name}
+  function drawPlayer(ctx, p, t, st) {
+    const ps = pose(p, t), col = st ? st.color : '#111';
+    ctx.save(); if (st) ctx.globalAlpha = st.alpha;
+    drawBoard(ctx, ps.board, p.wheel * 0.28, st ? col : INK);
+    ctx.strokeStyle = col; ctx.lineWidth = 3.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); for (const s of ps.segs) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); } ctx.stroke();
-    drawHead(ctx, ps.head, ps.f);
+    drawHead(ctx, ps.head, ps.f, col);
+    if (st && st.name) { ctx.font = '15px ' + FONT; ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(st.name, ps.head[0], ps.head[1] - 15); ctx.textAlign = 'left'; }
+    ctx.restore();
   }
 
   // ---------------- particles & death ragdoll ----------------
@@ -344,18 +348,20 @@
     for (let i = 0; i < n; i++) { const a = Math.random() * TAU, s = 60 + Math.random() * 160; fx.parts.push({ type: 'spark', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, life: 0, max: 0.5 + Math.random() * 0.3, s: 3 }); }
   };
   fx.word = function (str, x, y, color, size) { fx.words.push({ str, x, y, life: 0, max: 1.1, color: color || RED, size: size || 34, rot: (Math.random() - 0.5) * 0.3 }); };
-  fx.death = function (p, cause, t, hx, hy) {
+  fx.death = function (p, cause, t, hx, hy, opt) {
+    opt = opt || {};
     const ps = pose(p, t);
     const push = (x1, y1, x2, y2) => {
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, ang = (hx !== undefined ? Math.atan2(my - hy, mx - hx) : -Math.PI / 2);
       const s = 180 + Math.random() * 260;
-      fx.bones.push({ x: mx, y: my, a: Math.atan2(y2 - y1, x2 - x1), len: Math.hypot(x2 - x1, y2 - y1), va: (Math.random() - 0.5) * 18, vx: Math.cos(ang) * s * 0.7 + p.vx * 0.4, vy: Math.sin(ang) * s * 0.7 - 260 - Math.random() * 120, life: 0 });
+      fx.bones.push({ x: mx, y: my, a: Math.atan2(y2 - y1, x2 - x1), len: Math.hypot(x2 - x1, y2 - y1), va: (Math.random() - 0.5) * 18, vx: Math.cos(ang) * s * 0.7 + p.vx * 0.4, vy: Math.sin(ang) * s * 0.7 - 260 - Math.random() * 120, life: 0, color: opt.color, alpha: opt.alpha });
     };
     for (const s of ps.segs) push(s[0], s[1], s[2], s[3]);
-    const h = ps.head; fx.bones.push({ head: true, x: h[0], y: h[1], a: 0, len: 0, va: 6, vx: p.vx * 0.5 + (Math.random() - 0.5) * 200, vy: -420 - Math.random() * 120, life: 0, f: ps.f });
-    const b = ps.board; fx.bones.push({ board: true, x: b.cx, y: b.cy, a: Math.atan2(b.dy, b.dx), len: 46, va: (Math.random() - 0.5) * 14, vx: p.vx * 0.6 + (Math.random() - 0.5) * 240, vy: -300 - Math.random() * 200, life: 0 });
+    const h = ps.head; fx.bones.push({ head: true, x: h[0], y: h[1], a: 0, len: 0, va: 6, vx: p.vx * 0.5 + (Math.random() - 0.5) * 200, vy: -420 - Math.random() * 120, life: 0, f: ps.f, color: opt.color, alpha: opt.alpha });
+    const b = ps.board; fx.bones.push({ board: true, x: b.cx, y: b.cy, a: Math.atan2(b.dy, b.dx), len: 46, va: (Math.random() - 0.5) * 14, vx: p.vx * 0.6 + (Math.random() - 0.5) * 240, vy: -300 - Math.random() * 200, life: 0, color: opt.color, alpha: opt.alpha });
     const ink = cause === 'lava' ? '#f08a2a' : RED;
-    for (let i = 0; i < 22; i++) { const a = Math.random() * TAU, s = 80 + Math.random() * 300; fx.ink.push({ x: p.x, y: p.y - 22, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, r: 1.5 + Math.random() * 3.5, life: 0, color: ink, stuck: false }); }
+    for (let i = 0; i < 22; i++) { const a = Math.random() * TAU, s = 80 + Math.random() * 300; fx.ink.push({ x: p.x, y: p.y - 22, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, r: 1.5 + Math.random() * 3.5, life: 0, color: ink, alpha: opt.alpha, stuck: false }); }
+    if (opt.quiet) return;
     const ws = WORDS[cause] || WORDS.spikes; fx.word(ws[(Math.random() * ws.length) | 0], p.x - 40, p.y - 70, ink, 36);
   };
   fx.clearDeath = function () { fx.bones.length = 0; fx.ink.length = 0; };
@@ -376,11 +382,12 @@
       else { ctx.strokeStyle = '#e0a020'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke(); }
     }
     ctx.globalAlpha = 1;
-    for (const k of fx.ink) { ctx.fillStyle = k.color; ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.fill(); }
+    for (const k of fx.ink) { ctx.globalAlpha = k.alpha || 1; ctx.fillStyle = k.color; ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 1;
     ctx.lineCap = 'round';
     for (const b of fx.bones) {
-      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.strokeStyle = b.board ? INK : '#111'; ctx.lineWidth = b.board ? 3.4 : 3.2;
-      if (b.head) { ctx.beginPath(); ctx.arc(0, 0, 5.6, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 5.8, Math.PI, TAU); ctx.fillStyle = '#111'; ctx.fill(); }
+      ctx.save(); ctx.globalAlpha = b.alpha || 1; ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.strokeStyle = b.color || (b.board ? INK : '#111'); ctx.lineWidth = b.board ? 3.4 : 3.2;
+      if (b.head) { ctx.beginPath(); ctx.arc(0, 0, 5.6, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 5.8, Math.PI, TAU); ctx.fillStyle = b.color || '#111'; ctx.fill(); }
       else { ctx.beginPath(); ctx.moveTo(-b.len / 2, 0); ctx.lineTo(b.len / 2, 0); ctx.stroke(); }
       ctx.restore();
     }
@@ -389,7 +396,7 @@
   };
 
   // ---------------- world ----------------
-  function drawWorld(ctx, w, cam, view) {
+  function drawWorld(ctx, w, cam, view, bots) {
     const t = w.t, p = w.player;
     page(ctx, cam, view, w.level);
     ctx.save(); ctx.lineCap = 'round';
@@ -424,6 +431,7 @@
     text(ctx, 'START', w.level.start.x - 70, w.level.start.y - 70, 26, RED, -0.06);
     ctx.strokeStyle = RED; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(w.level.start.x - 50, w.level.start.y - 58); ctx.quadraticCurveTo(w.level.start.x - 44, w.level.start.y - 40, w.level.start.x - 46, w.level.start.y - 26); ctx.lineTo(w.level.start.x - 53, w.level.start.y - 33); ctx.moveTo(w.level.start.x - 46, w.level.start.y - 26); ctx.lineTo(w.level.start.x - 39, w.level.start.y - 34); ctx.stroke();
     drawFinish(ctx, w, t);
+    for (const b of bots || []) if (!b.w.player.dead) drawPlayer(ctx, b.w.player, t, { color: b.color, alpha: 0.62, name: b.name });
     if (!p.dead) drawPlayer(ctx, p, t);
     ctx.restore();
     ctx.restore(); // page clip

@@ -18,32 +18,7 @@ function advance(n, name){
   }
   n.t += CH*dt;
 }
-// Route: [{x,y,tag}] in order.
-function route(lv){
-  const { rows, gap, step, cuts } = lv.meta, Y0 = lv.start.y, wp = []; HZ = hazardRanges(lv);
-  const push = (x,y,tag) => wp.push({x,y,tag});
-  for (let i=0;i<rows;i++){
-    const d = i%2===0?1:-1, Y = Y0-gap*i;
-    if (i===0) push(lv.start.x+60,Y,'row0 start'); else push(d>0?195:1075,Y,`row${i} arrival`);
-    const gaps = (cuts[i]||[]).slice().sort((a,b)=>d*(a[0]-b[0]));
-    let cx = wp[wp.length-1].x;
-    for (const [c0,c1] of gaps){ const fx = d>0? c1+30 : c0-30; densify(wp,cx,fx,Y,d,`row${i}`); push(fx,Y,`row${i} past gap ${c0}-${c1}`); cx=fx; }
-    if (i<rows-1){
-      const end = d>0? 1090 : 230; densify(wp,cx,end,Y,d,`row${i}`);
-      if (d>0){ push(1150,Y-step,`row${i} stair1`); push(1235,Y-2*step,`row${i} stair2`); }
-      else { push(130,Y-step,`row${i} stair1`); push(50,Y-2*step,`row${i} stair2`); }
-    } else push(lv.finish.x,lv.finish.y,'FINISH');
-  }
-  return wp;
-}
-let HZ=[]; // x-ranges swept by moving hazards: never park a waypoint inside one
-function hazardRanges(lv){ return lv.objects.flatMap(o=>{
-  if(o.type==='pendulum'){ const r=o.len*Math.sin(o.amp*Math.PI/180)+(o.r||22)+40; return [[o.x-r,o.x+r]]; }
-  if(o.type==='saw') return [[o.x-o.r-40,o.x+o.r+40+Math.max(0,(o.path&&o.path.dx)||0)]];
-  if(o.type==='crusher') return [[o.x-40,o.x+o.w+40]];
-  if(o.type==='grinder') return [[o.x-o.r*2-40,o.x+o.r*2+40]];
-  return []; }); }
-function densify(wp,x0,x1,Y,d,tag){ for(let x=x0+d*250; d*(x1-x)>120; x+=d*250) if(!HZ.some(([a,b])=>x>a&&x<b)) wp.push({x,y:Y,tag:tag+' run'}); }
+require('../js/bots.js'); const route = D.Bots.route;
 const reached = (p,g) => p.grounded && Math.abs(p.x-g.x)<28 && Math.abs(p.y-g.y)<8;
 function stage(starts, g, width, maxDepth){
   const deaths={}; globalThis.lastDeaths=deaths;
@@ -51,7 +26,7 @@ function stage(starts, g, width, maxDepth){
   for (let depth=0; depth<maxDepth; depth++){
     const next = new Map();
     for (const n of beam) for (const a of NAMES){
-      const c=clone(n); advance(c,a);
+      const c=clone(n); advance(c,a); c.plan={a,prev:n.plan};
       if (c.w.player.dead) { const k=c.w.player.cause+'@'+Math.round(c.w.player.x/20)*20; deaths[k]=(deaths[k]||0)+1; continue; }
       if (c.w.finished) return { done:true, states:[c] };
       const p=c.w.player;
@@ -71,15 +46,18 @@ function stage(starts, g, width, maxDepth){
   return { states: out };
 }
 function solve(lv, width){
-  const wp = route(lv); let states=[{ w:D.build(lv), hold:0, t:0 }];
+  const wp = route(lv); let states=[{ w:D.build(lv), hold:0, t:0, plan:null }];
   for (let k=0;k<wp.length;k++){
     const r = stage(states, wp[k], width, 500);
-    if (r.done) return { ok:true, time:r.states[0].t };
+    if (r.done) { const plan=[]; for(let q=r.states[0].plan;q;q=q.prev) plan.push(q.a); return { ok:true, time:r.states[0].t, plan:plan.reverse() }; }
     if (r.fail) return { ok:false, at:`waypoint ${k}/${wp.length} "${wp[k].tag}" (${wp[k].x},${wp[k].y}): ${r.fail}` };
     states = r.states;
   }
   return { ok:false, at:'ran out of waypoints without finishing' };
 }
+module.exports = { solve, ACT, CH, dt };
+if (require.main === module) {
 const only = process.argv[2];
 levels.forEach((lv,i)=>{ if(only!==undefined && +only!==i) return; const t=Date.now(); const r=solve(lv, +(process.argv[3]||60));
   console.log(lv.name, r.ok?`SOLVED in ${r.time.toFixed(1)}s (sim)`:`FAILED at ${r.at}`, `[${((Date.now()-t)/1000).toFixed(1)}s]`); });
+}
