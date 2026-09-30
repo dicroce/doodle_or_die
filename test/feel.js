@@ -32,3 +32,10 @@ for (const useJump of [false,true]) {
   run(ww,4,(t,w)=>{ apex=Math.min(apex,w.player.y); if(w.player.x>1118&&w.player.x<1122) spd=w.player.vx; });
   console.log('ramp: speed at lip',spd&&spd.toFixed(0),'apex height above ground',(400-apex).toFixed(0));
 }
+
+// grind: ollie over a spike bed that is too wide to clear, grind across it
+{ const mk=(g)=>{ const ww=D.build({name:'t',w:5000,h:540,start:{x:100,y:400},finish:{x:4900},objects:[{type:'solid',x:0,y:400,w:5000,h:300},{type:'spikes',x:700,y:378,w:400,h:22,facing:'up'}]});
+    ww.input.right=true; let j=false,gr=false,minY=1e9;
+    run(ww,6,(t,w)=>{ const p=w.player; if(!j&&p.x>=700-60){w.input.jumpPressed=true;w.input.jump=true;j=true;} if(j&&p.airT>0.3)w.input.jump=false; if(g&&j&&!gr&&p.airT>0.25){w.input.grindPressed=true;gr=true;} });
+    return ww; };
+  console.log('spike bed 400px wide, no grind ->', mk(false).player.dead?'DEAD':'alive', '| with grind ->', mk(true).player.dead?'DEAD':'alive'); }

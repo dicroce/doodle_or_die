@@ -63,6 +63,8 @@
       crumble() { burst(0.25, 900, 'bandpass', 0.4, 1.5); },
       win() { [523, 659, 784, 1046].forEach((f, i) => tone('triangle', f, f, 0.25, 0.35, i * 0.11)); },
       start() { tone('triangle', 440, 660, 0.15, 0.3); },
+      grind() { burst(0.28, 3500, 'highpass', 0.35, 1, 6000); tone('sawtooth', 700, 1500, 0.12, 0.12); },
+      scrape() { burst(0.06, 4500, 'highpass', 0.12, 1); },
     };
   })();
 
@@ -121,6 +123,9 @@
     if (world.player.dead) { if (world.player.deadT > 0.3) doRespawn(); return; }
     world.input.jumpPressed = true;
   }
+  function pressGrind() {
+    if (state === 'play' && !world.player.dead) world.input.grindPressed = true;
+  }
   function anyAction() { // title / win / end screens
     Snd.init();
     if (state === 'title') startPlay(0);
@@ -143,6 +148,7 @@
     if (state !== 'play') { if (e.code === 'Space' || e.code === 'Enter') anyAction(); return; }
     if (e.code === 'Escape') { state = 'title'; stateT = 0; loadLevel(0); return; }
     if (e.code === 'KeyR' && !world.player.dead) { forceDie(); return; }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') { pressGrind(); return; }
     if (keys.jump.includes(e.code)) pressJump();
     else if (world.player.dead && world.player.deadT > 0.3 && (keys.left.includes(e.code) || keys.right.includes(e.code) || e.code === 'Enter')) doRespawn();
   });
@@ -159,6 +165,7 @@
       { id: 'left', x: m + s * 0.5, y: ch - m - s * 0.5, r: s * 0.55, label: '◀' },
       { id: 'right', x: m + s * 1.75, y: ch - m - s * 0.5, r: s * 0.55, label: '▶' },
       { id: 'jump', x: cw - m - s * 0.8, y: ch - m - s * 0.8, r: s * 0.8, label: 'OLLIE' },
+      { id: 'grind', x: cw - m - s * 2.2, y: ch - m - s * 0.55, r: s * 0.55, label: 'GRIND' },
     ];
   }
   function touchBtn(id) { for (const b of touches.values()) if (b === id) return true; return false; }
@@ -175,6 +182,7 @@
     const id = hitButton(e.clientX, e.clientY); touches.set(e.pointerId, id);
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     if (id === 'jump') pressJump();
+    else if (id === 'grind') pressGrind();
     else if (world.player.dead && world.player.deadT > 0.3) doRespawn();
   });
   canvas.addEventListener('pointermove', (e) => { if (touches.has(e.pointerId)) touches.set(e.pointerId, hitButton(e.clientX, e.clientY) || (touches.get(e.pointerId) === 'jump' ? 'jump' : hitButton(e.clientX, e.clientY))); });
@@ -203,6 +211,8 @@
           if (e.impact > 260) { fx.dust(e.x, e.y, 3 + Math.min(6, e.impact / 200 | 0), 140, 0); cam.shake = Math.max(cam.shake, clamp(e.impact / 400, 0, 3)); }
           break;
         case 'bonk': Snd.bonk(); cam.shake = Math.max(cam.shake, 3); fx.sparkle(e.x, e.y, 5); break;
+        case 'grind': Snd.grind(); fx.sparkle(e.x, e.y - 10, 10); fx.word('grind!', e.x - 26, e.y - 62, '#c98a00', 26); break;
+        case 'grindspark': Snd.scrape(); fx.sparkle(e.x, e.y, 3); break;
         case 'spring': Snd.spring(); fx.dust(e.x, e.y, 6, 120, 0); break;
         case 'crumble': Snd.crumble(); break;
         case 'checkpoint': Snd.checkpoint(); fx.sparkle(e.x + 10, e.y - 50, 14); fx.word('saved!', e.x - 20, e.y - 80, R.INK, 26); break;
@@ -315,7 +325,7 @@
     txt('a skateboarding stick figure vs. a bored kid with a pen', cx, 218, 24, 'rgba(29,42,77,0.8)', -0.01, 'center');
     const blink = 0.6 + 0.4 * Math.sin(simT * 4);
     txt(touchMode ? 'tap to start' : 'press SPACE to start', cx, view.h - 110, 34, 'rgba(29,42,77,' + blink + ')', 0, 'center');
-    txt('← → push/brake     SPACE ollie (hold = higher)     R retry   B rivals   M mute', cx, view.h - 70, 19, 'rgba(29,42,77,0.65)', 0, 'center');
+    txt('← → push/brake     SPACE ollie (hold = higher)     ↓ grind (in the air)   R retry   B rivals   M mute', cx, view.h - 70, 19, 'rgba(29,42,77,0.65)', 0, 'center');
     txt('keys 1-' + levels.length + ' pick a page', cx, view.h - 44, 18, 'rgba(29,42,77,0.5)', 0, 'center');
   }
   function drawWin() {
@@ -339,11 +349,13 @@
   function drawTouch() {
     ctx.lineWidth = 3; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const b of buttons) {
-      const on = touchBtn(b.id);
+      const on = touchBtn(b.id), pl = world.player;
+      ctx.globalAlpha = b.id === 'grind' && (pl.grounded || pl.grindCool > 0) ? 0.4 : 1;
       ctx.fillStyle = on ? 'rgba(208,36,46,0.35)' : 'rgba(29,42,77,0.10)'; ctx.strokeStyle = on ? R.RED : 'rgba(29,42,77,0.55)';
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.font = (b.id === 'jump' ? b.r * 0.38 : b.r * 0.6) + 'px ' + R.FONT; ctx.fillStyle = on ? R.RED : 'rgba(29,42,77,0.7)';
       ctx.fillText(b.label, b.x, b.y + 2);
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -357,6 +369,7 @@
   if (!world) loadLevel(0);
   if (qs.get('x')) { // dev: ?l=2&x=2500[&y=400] teleports the player (used for screenshots/testing)
     const p = world.player; p.x = +qs.get('x'); p.y = +(qs.get('y') || 400); world.spawn = { x: p.x, y: p.y, vx: 0 };
+    if (qs.get('gr')) { p.grounded = false; p.grindT = 0.8; p.vy = 30; p.vx = 300; } // dev: start mid-grind
   }
   if (qs.get('ff')) { // dev: ?l=1&ff=25 fast-forwards 25s of simulated time (rivals included) for screenshots
     for (let n = 0; n < (+qs.get('ff')) * 120; n++) { D.step(world, STEP); if (bots.length) D.Bots.step(bots, STEP, botEvents); if (n % 6 === 0) fx.update(STEP * 6); if (world.events.length) world.events.length = 0; }

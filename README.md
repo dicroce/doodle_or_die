@@ -10,6 +10,7 @@ bored kid would draw in class. Fall off a higher row and you land on the one bel
 |---|---|
 | ← → / A D | push / brake |
 | Space / ↑ / W / Z | ollie (hold = higher, tap = short hop) |
+| ↓ / S (in the air) | grind: 1s immune to spikes, saws, pendulums, crushers (not lava or pits); 1.2s cooldown |
 | R | retry from checkpoint |
 | B | rivals on/off |
 | M | mute |

@@ -27,6 +27,8 @@
     SPRING_V: 1050,
     STEP_UP: 5,            // grounded curb step
     LEDGE_FORGIVE: 10,     // airborne corner correction
+    GRIND_TIME: 1.0,       // seconds of hazard immunity (spikes, saws, pendulums, crushers; not lava/pits)
+    GRIND_COOLDOWN: 1.2,   // after a grind ends, before the next one is allowed
   };
   const TAU = Math.PI * 2;
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -70,7 +72,7 @@
       solids: [], ramps: [], hazards: [], fans: [], springs: [], checks: [], texts: [],
       events: [], deaths: 0, finished: false,
       spawn: { x: level.start.x, y: level.start.y, vx: 0 },
-      input: { left: false, right: false, jump: false, jumpPressed: false },
+      input: { left: false, right: false, jump: false, jumpPressed: false, grindPressed: false },
       player: null,
     };
     for (const o of level.objects) {
@@ -102,7 +104,7 @@
     return {
       x, y, vx: vx || 0, vy: 0, grounded: true, surf: null, support: null,
       face: 1, coyote: 0, buffer: 0, jumping: false, cut: false, groundVy: 0,
-      boardAng: 0, squash: 0, airT: 0, wheel: 0, pushing: false, pushPh: 0, popT: 9,
+      grindT: 0, grindCool: 0, grinding: false, sparkT: 0, boardAng: 0, squash: 0, airT: 0, wheel: 0, pushing: false, pushPh: 0, popT: 9,
       dead: false, deadT: 0, cause: null, hitX: 0, hitY: 0,
     };
   }
@@ -208,6 +210,13 @@
     p.coyote = p.grounded ? C.COYOTE : p.coyote - dt;
     p.popT += dt;
     p.squash = Math.max(0, p.squash - dt * 5);
+    // grind: press down in the air for a moment of hazard immunity (once per cooldown)
+    if (inp.grindPressed) {
+      inp.grindPressed = false;
+      if (!p.grounded && p.grindT <= 0 && p.grindCool <= 0) { p.grindT = C.GRIND_TIME; w.events.push({ type: 'grind', x: p.x, y: p.y }); }
+    }
+    if (p.grindT > 0) { p.grindT = Math.max(0, p.grindT - dt); if (p.grindT === 0) p.grindCool = C.GRIND_COOLDOWN; }
+    else p.grindCool = Math.max(0, p.grindCool - dt);
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
 
     // wind
@@ -329,8 +338,15 @@
 
     // hazards
     const hitBox = { l: p.x - HW + 4, r: p.x + HW - 4, t: p.y - H + 4, b: p.y - 2 };
+    p.grinding = false; p.sparkT -= dt;
     for (const h of w.hazards) {
-      if (hazardHit(w, h, hitBox)) { kill(w, h.type, p.x, p.y - 20); return; }
+      if (!hazardHit(w, h, hitBox)) continue;
+      if (p.grindT > 0 && h.type !== 'lava') { // grinding it: sparks instead of death
+        p.grinding = true;
+        if (p.sparkT <= 0) { p.sparkT = 0.06; w.events.push({ type: 'grindspark', x: p.x, y: p.y - 6 }); }
+        continue;
+      }
+      kill(w, h.type, p.x, p.y - 20); return;
     }
     if (p.y - H > w.level.h + 80) { kill(w, 'fall', p.x, p.y); return; }
 

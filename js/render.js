@@ -273,6 +273,7 @@
     let hipH = 15.5 - 5.5 * p.squash;
     if (air) hipH = p.popT < 0.07 ? 17.5 : (rise > 0 ? 12.5 : 14.5);
     else if (p.pushing) hipH -= 1.2;
+    if (p.grindT > 0) hipH = 11; // low grinding crouch
     const lean = clamp(p.vx / C.MAX_SPEED, -1, 1) * f * 3;
     const ff = [cx + dx * 10 + nx * 2, cy + dy * 10 + ny * 2];
     let rf = [cx - dx * 10 + nx * 2, cy - dy * 10 + ny * 2];
@@ -333,6 +334,13 @@
     ctx.strokeStyle = col; ctx.lineWidth = 3.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); for (const s of ps.segs) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); } ctx.stroke();
     drawHead(ctx, ps.head, ps.f, col);
+    if (p.grindT > 0) { // pencil timer ring: drains over the grind, blinks when nearly out
+      const k = p.grindT / C.GRIND_TIME;
+      if (k > 0.3 || Math.sin(t * 40) > 0) {
+        ctx.strokeStyle = '#e8a010'; ctx.lineWidth = 3.4; ctx.beginPath();
+        ctx.arc(p.x, p.y - 24, 34, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();
+      }
+    }
     if (st && st.name) { ctx.font = '15px ' + FONT; ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(st.name, ps.head[0], ps.head[1] - 15); ctx.textAlign = 'left'; }
     ctx.restore();
   }
